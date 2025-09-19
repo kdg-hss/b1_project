@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# =================================================================================
+# Skrip Akun Trial Shadowsocks (Non-Interaktif) v2
+# Disesuaikan untuk Bot Telegram dan TIDAK merusak config.json
+# FIX v2: Menambahkan 'mkdir -p' untuk memastikan direktori ada.
+# =================================================================================
+
+# --- Konfigurasi Trial ---
+TRIAL_DURATION="2 hours"
+QUOTA_GB="1"
+
+# --- Pengaturan Variabel ---
+domain=$(cat /etc/xray/domain)
+user=TrialSS-`head /dev/urandom | tr -dc A-Z0-9 | head -c4`
+uuid=$(cat /proc/sys/kernel/random/uuid)
+cipher="aes-128-gcm"
+exp=$(date -d "$TRIAL_DURATION" +"%Y-%m-%d %H:%M:%S")
+
+# --- Proses Penambahan User ke Konfigurasi Xray ---
+# Perintah sed ini tidak lagi memasukkan baris komentar '#'
+sed -i '/#ssws$/a\,"password": "'""$uuid""'","method": "'""$cipher""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#ssgrpc$/a\,"password": "'""$uuid""'","method": "'""$cipher""'","email": "'""$user""'"' /etc/xray/config.json
+
+# --- Membuat Link Shadowsocks ---
+shadowsocks_base64_part=$(echo -n "${cipher}:${uuid}" | base64)
+sslinkws="ss://${shadowsocks_base64_part}@${domain}:443?path=/ss-ws&security=tls&encryption=none&type=ws#${user}"
+nonsslinkws="ss://${shadowsocks_base64_part}@${domain}:80?path=/ss-ws&security=none&encryption=none&type=ws#${user}"
+sslinkgrpc="ss://${shadowsocks_base64_part}@${domain}:443?mode=gun&security=tls&encryption=none&type=grpc&serviceName=ss-grpc&sni=${domain}#${user}"
+
+# --- Membuat File Konfigurasi Klien ---
+mkdir -p /home/vps/public_html
+cat > "/home/vps/public_html/ss-config-$user.txt" <<-END
+Informasi Akun Trial Shadowsocks
+---------------------------------
+User: ${user}
+Host: ${domain}
+Masa Aktif: 2 Jam
+Expired: ${exp}
+---------------------------------
+Link WS TLS: ${sslinkws}
+Link WS Non-TLS: ${nonsslinkws}
+Link gRPC: ${sslinkgrpc}
+---------------------------------
+END
+
+# --- Menyimpan ke Database Teks Lokal & Limit ---
+
+# FIX: Pastikan direktori /etc/shadowsocks ada sebelum membuat file di dalamnya
+mkdir -p /etc/shadowsocks
+
+# Untuk .shadowsocks.db
+touch /etc/shadowsocks/.shadowsocks.db
+sed -i "/\b${user}\b/d" /etc/shadowsocks/.shadowsocks.db
+echo "#ss# ${user} ${exp} ${uuid} ${QUOTA_GB}" >>/etc/shadowsocks/.shadowsocks.db
+
+# Untuk Quota
+c=$(echo "${QUOTA_GB}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+if [[ ${c} != "0" ]]; then
+    echo "${d}" >/etc/shadowsocks/${user}
+fi
+
+# --- Restart Layanan ---
+systemctl reload xray >/dev/null 2>&1
+
+# --- Cetak Output untuk Bot Telegram ---
+echo "✅ Akun Trial Shadowsocks Berhasil Dibuat"
+echo "==================================="
+echo "Remarks       : ${user}"
+echo "Domain        : ${domain}"
+echo "Masa Aktif    : 2 Jam"
+echo "-----------------------------------"
+echo "Link SS WS TLS:"
+echo "${sslinkws}"
+echo "-----------------------------------"
+echo "Link SS WS Non-TLS:"
+echo "${nonsslinkws}"
+echo "-----------------------------------"
+echo "Link SS gRPC:"
+echo "${sslinkgrpc}"
+echo "-----------------------------------"
+echo "Detail Akun   : http://${domain}:89/ss-config-$user.txt"
+echo "==================================="
+echo "Akun akan expired dalam 2 jam."
+
+exit 0

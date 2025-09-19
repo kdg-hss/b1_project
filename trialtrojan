@@ -1,0 +1,67 @@
+#!/bin/bash
+# ========================================
+# Script Trial Trojan
+# Author: Julak Bantur
+# ========================================
+
+USER="trial-$(date +%s | tail -c 4)"
+UUID=$(cat /proc/sys/kernel/random/uuid)
+DOMAIN=$(cat /etc/xray/domain)
+DAYS=1
+IPLIMIT=2
+QUOTA=100
+
+EXP_DATE=$(date -d "$DAYS days" +"%Y-%m-%d")
+
+# Update config.json
+sed -i '/#trojanws$/a\#! '"$USER $EXP_DATE $UUID"'\
+},{"password": "'""$UUID""'","email": "'""$USER""'"' /etc/xray/config.json
+sed -i '/#trojangrpc$/a\#trg '"$USER $EXP_DATE $UUID"'\
+},{"password": "'""$UUID""'","email": "'""$USER""'"' /etc/xray/config.json
+
+# Buat link
+TROJAN_WS="trojan://${UUID}@${DOMAIN}:443?path=/trojan-ws&security=tls&type=ws&sni=${DOMAIN}#${USER}"
+TROJAN_NONE="trojan://${UUID}@${DOMAIN}:80?path=/trojan-ws&security=auto&type=ws#${USER}"
+TROJAN_GRPC="trojan://${UUID}@${DOMAIN}:443?mode=gun&security=tls&type=grpc&serviceName=trojan-grpc&sni=${DOMAIN}#${USER}"
+
+mkdir -p /var/www/html
+cat >/var/www/html/trojan-$USER.txt <<-EOF
+Trojan WS: $TROJAN_WS
+Trojan Non TLS: $TROJAN_NONE
+Trojan gRPC: $TROJAN_GRPC
+EOF
+
+systemctl restart xray
+
+echo "Trial Trojan berhasil dibuat!"
+echo "Username: $USER"
+echo "Expired: $EXP_DATE"
+echo "Link WS: $TROJAN_WS"
+echo "Link Non TLS: $TROJAN_NONE"
+echo "Link gRPC: $TROJAN_GRPC"
+
+echo -e "---------------------------------------------------"
+echo -e " XRAY TROJAN ACCOUNT          "
+echo -e "---------------------------------------------------"
+echo -e "Remarks          : ${USER}" 
+echo -e "Host/IP          : ${DOMAIN}"
+echo -e "User Quota       : ${QUOTA} GB"
+echo -e "User IP          : ${IPLIMIT} IP"
+echo -e "Port NTLS       : 443" 
+echo -e "port None TLS/WS : 80,8080"
+echo -e "Key              : ${uuid}" 
+echo -e "Path             : /trojan-ws" 
+echo -e "ServiceName      : trojan-grpc" 
+echo -e "---------------------------------------------------"
+echo -e "Link WS          : ${TROJAN_WS}" 
+echo -e "---------------------------------------------------"
+echo -e "Link None Ws     : ${TROJAN_NONE}" 
+echo -e "---------------------------------------------------"
+echo -e "Link GRPC        : ${TROJAN_GRPC}" 
+echo -e "---------------------------------------------------"
+echo -e "Format OpenClash : https://${domain}:81/trojan-$user.txt" 
+echo -e "---------------------------------------------------"
+echo -e "Masa Aktif.     : $EXP_DATE"
+echo -e "---------------------------------------------------"
+echo -e "       Terima Kasih Telah Menggunakan Layanan bot Julak VPN     "
+echo -e "----------------------------------------------------------------------"

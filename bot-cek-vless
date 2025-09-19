@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# Skrip untuk mengecek login user VLESS dari log Xray
+# Versi perbaikan: sintaks echo, nama variabel, dan output dibersihkan.
+
+LOG_FILE="/var/log/xray/access.log"
+DB_FILE="/etc/vless/.vless.db"
+TMP_FILE="/tmp/vless_login_rotate"
+
+# Cek dependensi file
+if [ ! -f "$LOG_FILE" ]; then
+    echo "Error: File log tidak ditemukan di $LOG_FILE"
+    exit 1
+fi
+if [ ! -f "$DB_FILE" ]; then
+    echo "Error: File database VLESS tidak ditemukan di $DB_FILE"
+    exit 1
+fi
+
+# Ambil semua user dari database (mengabaikan baris komentar)
+all_users=($(grep -v "^#" "$DB_FILE" | cut -d' ' -f 2 | sort | uniq))
+
+# Kosongkan file temporary
+> "$TMP_FILE"
+
+# Loop melalui setiap user dan cek log mereka
+for user in "${all_users[@]}"; do
+    # Ambil 150 baris log terakhir untuk user ini
+    user_log=$(grep -w "email: $user" "$LOG_FILE" | tail -n 150)
+
+    while IFS= read -r log_line; do
+        if [[ -n "$log_line" ]]; then
+            # Ekstrak IP dan user dari log
+            ip_address=$(echo "$log_line" | awk '{print $3}' | sed 's/tcp://g' | cut -d: -f1)
+            user_email=$(echo "$log_line" | awk '{print $7}')
+
+            # Cek jika kombinasi user dan IP sudah ada di file temp untuk menghindari duplikat
+            if ! grep -q -w "$user_email $ip_address" "$TMP_FILE"; then
+                echo "$user_email $ip_address" >> "$TMP_FILE"
+            fi
+        fi
+    done <<< "$user_log"
+done
+
+# Header output
+echo "==================================="
+echo "      VLESS USER LOGIN"
+echo "==================================="
+
+active_user_found=0
+
+# Loop lagi untuk menampilkan hasil
+for user in "${all_users[@]}"; do
+    # Hitung jumlah IP yang login untuk user ini dari file temp
+    ip_count=$(grep -w "$user" "$TMP_FILE" | wc -l)
+
+    if [ "$ip_count" -gt 0 ]; then
+        active_user_found=1
+        # Gabungkan semua IP yang ditemukan menjadi satu baris
+        all_ips=$(grep -w "$user" "$TMP_FILE" | awk '{print $2}' | tr '\n' ' ')
+
+        echo "Username   : $user"
+        echo "Jumlah IP  : $ip_count"
+        echo "IP Address : $all_ips"
+        echo "-----------------------------------"
+    fi
+done
+
+if [ $active_user_found -eq 0 ]; then
+    echo "Tidak ada pengguna VLESS yang aktif saat ini."
+fi
+
+# Membersihkan file temporary
+rm -f "$TMP_FILE"

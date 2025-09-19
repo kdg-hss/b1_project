@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Skrip aman untuk menghapus user Shadowsocks menggunakan jq
+
+if [ -z "$1" ]; then
+    echo "Error: Username tidak diberikan."
+    exit 1
+fi
+
+user="$1"
+DB_FILE="/etc/shadowsocks/.shadowsocks.db"
+CONFIG_FILE="/etc/xray/config.json"
+
+# Cek apakah user ada di database teks
+if ! grep -q -w "$user" "$DB_FILE"; then
+    echo "❌ Gagal: User '$user' tidak ditemukan di database."
+    exit 1
+fi
+
+# Ambil UUID (password) user yang akan dihapus
+uuid_to_delete=$(grep -w "$user" "$DB_FILE" | awk '{print $3}')
+
+if [ -z "$uuid_to_delete" ]; then
+    echo "❌ Gagal: Tidak dapat menemukan UUID/Password untuk user '$user'."
+    exit 1
+fi
+
+# Hapus user dari config.json menggunakan jq
+# Ini akan menghapus entri klien yang memiliki 'password' yang cocok di semua inbound Shadowsocks
+jq '(.inbounds[]? | select(.protocol=="shadowsocks").settings.clients) |= map(select(.password != "'$uuid_to_delete'"))' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp"
+
+if [ $? -eq 0 ]; then
+    mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+else
+    echo "❌ Gagal memproses config.json dengan jq."
+    rm -f "${CONFIG_FILE}.tmp"
+    exit 1
+fi
+
+# Hapus dari database teks .shadowsocks.db
+sed -i "/\b$user\b/d" "$DB_FILE"
+
+# Hapus file kuota (jika ada)
+if [ -f "/etc/shadowsocks/$user" ]; then
+    rm -f "/etc/shadowsocks/$user"
+fi
+
+# Restart Xray
+systemctl restart xray
+
+echo "✅ User Shadowsocks '$user' berhasil dihapus."
+
+exit 0

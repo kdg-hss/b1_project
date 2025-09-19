@@ -1,0 +1,346 @@
+#!/bin/bash
+
+# Skrip ini membuat akun Shadowsocks secara non-interaktif.
+
+# --- Ambil Argumen ---
+user="$1"
+masaaktif="$2"
+Quota="1000"
+
+# --- Definisi Variabel yang Dibaca dari File atau Dihasilkan ---
+ISP=$(cat /root/.isp 2>/dev/null || curl -s ipinfo.io/org | cut -d ' ' -f 2-10 || echo "Unknown ISP")
+CITY=$(cat /root/.city 2>/dev/null || curl -s ipinfo.io/city || echo "Unknown City")
+
+# Mendapatkan Domain/IP
+source /var/lib/julak/ipvps.conf 2>/dev/null || true
+if [[ -z "$IP" ]]; then
+    domain=$(cat /etc/xray/domain 2>/dev/null || curl -sS ipv4.icanhazip.com)
+else
+    domain=$IP
+fi
+
+# Variabel yang ada di skrip asli Anda, tapi tidak dipakai di output akhir
+# CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3 2>/dev/null || echo "DEFAULT_CHATID")
+# KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2 2>/dev/null || echo "DEFAULT_BOT_KEY")
+# export TIME="10"
+# export URL="https://api.telegram.org/bot$KEY/sendMessage"
+
+# --- Logika Pembuatan Akun Shadowsocks (Diadaptasi dari skrip asli Anda) ---
+
+# Cek apakah username sudah ada di /etc/xray/config.json
+CLIENT_EXISTS=$(grep -w $user /etc/xray/config.json | wc -l)
+if [[ ${CLIENT_EXISTS} == '1' ]]; then
+    echo "Error: Akun dengan username ${user} sudah ada, silakan pilih nama lain."
+    exit 1
+fi
+
+cipher="aes-128-gcm" # Mengambil dari skrip Anda
+uuid=$(cat /proc/sys/kernel/random/uuid) # Password untuk Shadowsocks
+
+# Hitung tanggal kedaluwarsa
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+exp=`date -d "$masaaktif days" +"%Y-%m-%d"`
+
+# Tambahkan konfigurasi ke Xray
+sed -i '/#ssws$/a\#!# '"$user $exp"'\
+},{"password": "'""$uuid""'","method": "'""$cipher""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#ssgrpc$/a\#!# '"$user $exp"'\
+},{"password": "'""$uuid""'","method": "'""$cipher""'","email": "'""$user""'"' /etc/xray/config.json
+
+# Buat Shadowsocks link
+echo "$cipher:$uuid" > /tmp/log
+shadowsocks_base64=$(cat /tmp/log)
+echo -n "${shadowsocks_base64}" | base64 > /tmp/log1
+shadowsocks_base64e=$(cat /tmp/log1)
+
+# Ambil tls port (asumsi dari log-install.txt, jika tidak ada, perlu penyesuaian)
+tls=$(grep -w "Sodosok WS/GRPC" ~/log-install.txt | cut -d: -f2|sed 's/ //g' 2>/dev/null || echo "443") # Fallback ke 443
+
+sslinkws="ss://${shadowsocks_base64e}@$domain:$tls?path=/ss-ws&security=tls&encryption=none&type=ws#${user}"
+nonsslinkws="ss://${shadowsocks_base64e}@$domain:80?path=/ss-ws&security=none&encryption=none&type=ws#${user}"
+sslinkgrpc="ss://${shadowsocks_base64e}@$domain:$tls?mode=gun&security=tls&encryption=none&type=grpc&serviceName=ss-grpc&sni=${domain}#${user}"
+nonsslinkgrpc="ss://${shadowsocks_base64e}@$domain:80?mode=gun&security=none&encryption=none&type=grpc&serviceName=ss-grpc&sni=${domain}#${user}"
+
+systemctl restart xray > /dev/null 2>&1
+service cron restart > /dev/null 2>&1
+
+rm -rf /tmp/log
+rm -rf /tmp/log1
+
+# Buat file konfigurasi klien Shadowsocks di public_html
+mkdir -p /var/www/html/ # Pastikan direktori ini ada dan dapat ditulis
+
+cat > /var/www/html/sodosokws-$user.txt <<-END
+{ 
+  "dns": {
+    "servers": [
+      "8.8.8.8",
+      "8.8.4.4"
+    ]
+  },
+  "inbounds": [
+    {
+      "port": 10808,
+      "protocol": "socks",
+      "settings": {
+        "auth": "noauth",
+        "udp": true,
+        "userLevel": 8
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls"
+        ],
+        "enabled": true
+      },
+      "tag": "socks"
+    },
+    {
+      "port": 10809,
+      "protocol": "http",
+      "settings": {
+        "userLevel": 8
+      },
+      "tag": "http"
+    }
+  ],
+  "log": {
+    "loglevel": "none"
+  },
+  "outbounds": [
+    {
+      "mux": {
+        "enabled": true
+      },
+      "protocol": "shadowsocks",
+      "settings": {
+        "servers": [
+          {
+            "address": "$domain",
+            "level": 8,
+            "method": "$cipher",
+            "password": "$uuid",
+            "port": 443
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "allowInsecure": true,
+          "serverName": "$domain" # Menggunakan domain di sini untuk SNI
+        },
+        "wsSettings": {
+          "headers": {
+            "Host": "$domain"
+          },
+          "path": "/ss-ws"
+        }
+      },
+      "tag": "proxy"
+    },
+    {
+      "protocol": "freedom",
+      "settings": {},
+      "tag": "direct"
+    },
+    {
+      "protocol": "blackhole",
+      "settings": {
+        "response": {
+          "type": "http"
+        }
+      },
+      "tag": "block"
+    }
+  ],
+  "policy": {
+    "levels": {
+      "8": {
+        "connIdle": 300,
+        "downlinkOnly": 1,
+        "handshake": 4,
+        "uplinkOnly": 1
+      }
+    },
+    "system": {
+      "statsOutboundUplink": true,
+      "statsOutboundDownlink": true
+    }
+  },
+  "routing": {
+    "domainStrategy": "Asls",
+"rules": []
+  },
+  "stats": {}
+}
+END
+cat > /var/www/html/sodosokgrpc-$user.txt <<-END
+{
+    "dns": {
+    "servers": [
+      "8.8.8.8",
+      "8.8.4.4"
+    ]
+  },
+  "inbounds": [
+    {
+      "port": 10808,
+      "protocol": "socks",
+      "settings": {
+        "auth": "noauth",
+        "udp": true,
+        "userLevel": 8
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls"
+        ],
+        "enabled": true
+      },
+      "tag": "socks"
+    },
+    {
+      "port": 10809,
+      "protocol": "http",
+      "settings": {
+        "userLevel": 8
+      },
+      "tag": "http"
+    }
+  ],
+  "log": {
+    "loglevel": "none"
+  },
+  "outbounds": [
+    {
+      "mux": {
+        "enabled": true
+      },
+      "protocol": "shadowsocks",
+      "settings": {
+        "servers": [
+          {
+            "address": "$domain",
+            "level": 8,
+            "method": "$cipher",
+            "password": "$uuid",
+            "port": 443
+          }
+        ]
+      },
+      "streamSettings": {
+        "grpcSettings": {
+          "multiMode": true,
+          "serviceName": "ss-grpc"
+        },
+        "network": "grpc",
+        "security": "tls",
+        "tlsSettings": {
+          "allowInsecure": true,
+          "serverName": "$domain" # Menggunakan domain di sini untuk SNI
+        }
+      },
+      "tag": "proxy"
+    },
+    {
+      "protocol": "freedom",
+      "settings": {},
+      "tag": "direct"
+    },
+    {
+      "protocol": "blackhole",
+      "settings": {
+        "response": {
+          "type": "http"
+        }
+      },
+      "tag": "block"
+    }
+  ],
+  "policy": {
+    "levels": {
+      "8": {
+        "connIdle": 300,
+        "downlinkOnly": 1,
+        "handshake": 4,
+        "uplinkOnly": 1
+      }
+    },
+    "system": {
+      "statsOutboundUplink": true,
+      "statsOutboundDownlink": true
+    }
+  },
+  "routing": {
+    "domainStrategy": "Asls",
+"rules": []
+  },
+  "stats": {}
+}
+END
+
+# Update database shadowsocks
+if [ ! -e /etc/shadowsocks ]; then
+  mkdir -p /etc/shadowsocks
+fi
+
+if [ -z "${Quota}" ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/shadowsocks/${user}
+fi
+DATADB=$(cat /etc/shadowsocks/.shadowsocks.db 2>/dev/null | grep "^###" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/shadowsocks/.shadowsocks.db
+fi
+echo "### ${user} ${exp} ${uuid}" >>/etc/shadowsocks/.shadowsocks.db
+
+# Bangun variabel TEXT untuk pesan Telegram (Ini yang akan dicetak ke stdout)
+TEXT="<code>---------------------------------------------------</code>
+<code>      XRAY/SHADOWSOCKS Account Info</code>
+<code>---------------------------------------------------</code>
+<code>Remarks     : ${user}
+Domain      : ${domain}
+User Quota  : ${Quota} GB
+Port TLS    : 443-900
+Password    : ${uuid}
+Ciphers     : ${cipher}
+Network     : ws/grpc
+Path        : /ss-ws
+ServiceName : ss-grpc</code>
+<code>---------------------------------------------------</code>
+<code> Link WS TLS : ${sslinkws}</code>
+<code>---------------------------------------------------</code>
+<code> Link WS     : ${nonsslinkws}</code>
+<code>---------------------------------------------------</code>
+<code> Link GRPC   : ${sslinkgrpc}</code>
+<code>---------------------------------------------------</code>
+<code> Link GRPC Non TLS: ${nonsslinkgrpc}</code>
+<code>---------------------------------------------------</code>
+<code> Account ss  : https://${domain}:81/sodosokws-${user}.txt</code>
+<code>---------------------------------------------------</code>
+<code>Aktif Selama     : ${masaaktif} Hari</code>
+<code>Dibuat Pada      : ${tnggl}</code>
+<code>Berakhir Pada    : ${expe}</code>
+<code>---------------------------------------------------</code>
+"
+# Tidak perlu curl untuk mengirim ke Telegram di sini, bot Python yang akan melakukannya.
+
+# Cetak TEXT ke standard output agar bot Python bisa menangkapnya
+echo "$TEXT"

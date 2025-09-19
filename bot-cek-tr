@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# Skrip untuk mengecek login user Trojan dari log Xray
+# Versi perbaikan: Menangani kasus jika database belum ada.
+
+LOG_FILE="/var/log/xray/access.log"
+DB_FILE="/etc/trojan/.trojan.db"
+TMP_FILE="/tmp/trojan_login_rotate"
+
+# Header output
+echo "==================================="
+echo "      TROJAN USER LOGIN"
+echo "==================================="
+
+# Cek dependensi file. Jika tidak ada, beri pesan ramah dan keluar.
+if [ ! -f "$DB_FILE" ]; then
+    echo "Tidak ada pengguna Trojan yang terdaftar saat ini."
+    echo "Silakan buat akun terlebih dahulu."
+    echo "==================================="
+    exit 0
+fi
+
+if [ ! -f "$LOG_FILE" ]; then
+    echo "File log Xray tidak ditemukan. Tidak dapat mengecek aktivitas."
+    echo "==================================="
+    exit 0
+fi
+
+# Ambil semua user dari database
+all_users=($(grep -v "^#" "$DB_FILE" | cut -d' ' -f 2 | sort | uniq))
+
+# Jika tidak ada user di dalam file db, beri pesan dan keluar
+if [ ${#all_users[@]} -eq 0 ]; then
+    echo "Tidak ada pengguna Trojan yang terdaftar saat ini."
+    echo "==================================="
+    exit 0
+fi
+
+# Kosongkan file temporary
+> "$TMP_FILE"
+
+# Loop melalui setiap user dan cek log mereka
+for user in "${all_users[@]}"; do
+    user_log=$(grep -w "email: $user" "$LOG_FILE" | tail -n 150)
+    while IFS= read -r log_line; do
+        if [[ -n "$log_line" ]]; then
+            ip_address=$(echo "$log_line" | awk '{print $3}' | sed 's/tcp://g' | cut -d: -f1)
+            user_email=$(echo "$log_line" | awk '{print $7}')
+            if ! grep -q -w "$user_email $ip_address" "$TMP_FILE"; then
+                echo "$user_email $ip_address" >> "$TMP_FILE"
+            fi
+        fi
+    done <<< "$user_log"
+done
+
+active_user_found=0
+
+# Loop lagi untuk menampilkan hasil
+for user in "${all_users[@]}"; do
+    ip_count=$(grep -w "$user" "$TMP_FILE" | wc -l)
+    if [ "$ip_count" -gt 0 ]; then
+        active_user_found=1
+        all_ips=$(grep -w "$user" "$TMP_FILE" | awk '{print $2}' | tr '\n' ' ')
+        echo "Username   : $user"
+        echo "Jumlah IP  : $ip_count"
+        echo "IP Address : $all_ips"
+        echo "-----------------------------------"
+    fi
+done
+
+if [ $active_user_found -eq 0 ]; then
+    echo "Tidak ada pengguna Trojan yang aktif saat ini."
+fi
+
+# Bersihkan file temporary
+rm -f "$TMP_FILE"
