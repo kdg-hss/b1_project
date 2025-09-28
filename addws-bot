@@ -7,7 +7,7 @@
 user="$1"
 masaaktif="$2"
 Quota="1000"
-iplimit="3"
+iplimit="2"
 
 # --- Validasi Minimal Argumen ---
 if [ -z "$user" ] || [ -z "$masaaktif" ]; then
