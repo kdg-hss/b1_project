@@ -1,74 +1,114 @@
 #!/bin/bash
 
-# Skrip untuk mengecek login user VLESS dari log Xray
-# Versi perbaikan: sintaks echo, nama variabel, dan output dibersihkan.
-
-LOG_FILE="/var/log/xray/access.log"
-DB_FILE="/etc/vless/.vless.db"
-TMP_FILE="/tmp/vless_login_rotate"
-
-# Cek dependensi file
-if [ ! -f "$LOG_FILE" ]; then
-    echo "Error: File log tidak ditemukan di $LOG_FILE"
-    exit 1
-fi
-if [ ! -f "$DB_FILE" ]; then
-    echo "Error: File database VLESS tidak ditemukan di $DB_FILE"
-    exit 1
-fi
-
-# Ambil semua user dari database (mengabaikan baris komentar)
-all_users=($(grep -v "^#" "$DB_FILE" | cut -d' ' -f 2 | sort | uniq))
-
-# Kosongkan file temporary
-> "$TMP_FILE"
-
-# Loop melalui setiap user dan cek log mereka
-for user in "${all_users[@]}"; do
-    # Ambil 150 baris log terakhir untuk user ini
-    user_log=$(grep -w "email: $user" "$LOG_FILE" | tail -n 150)
-
-    while IFS= read -r log_line; do
-        if [[ -n "$log_line" ]]; then
-            # Ekstrak IP dan user dari log
-            ip_address=$(echo "$log_line" | awk '{print $3}' | sed 's/tcp://g' | cut -d: -f1)
-            user_email=$(echo "$log_line" | awk '{print $7}')
-
-            # Cek jika kombinasi user dan IP sudah ada di file temp untuk menghindari duplikat
-            if ! grep -q -w "$user_email $ip_address" "$TMP_FILE"; then
-                echo "$user_email $ip_address" >> "$TMP_FILE"
-            fi
-        fi
-    done <<< "$user_log"
-done
-
-# Header output
-echo "==================================="
-echo "      VLESS USER LOGIN"
-echo "==================================="
-
-active_user_found=0
-
-# Loop lagi untuk menampilkan hasil
-for user in "${all_users[@]}"; do
-    # Hitung jumlah IP yang login untuk user ini dari file temp
-    ip_count=$(grep -w "$user" "$TMP_FILE" | wc -l)
-
-    if [ "$ip_count" -gt 0 ]; then
-        active_user_found=1
-        # Gabungkan semua IP yang ditemukan menjadi satu baris
-        all_ips=$(grep -w "$user" "$TMP_FILE" | awk '{print $2}' | tr '\n' ' ')
-
-        echo "Username   : $user"
-        echo "Jumlah IP  : $ip_count"
-        echo "IP Address : $all_ips"
-        echo "-----------------------------------"
+# Fungsi konversi byte ke format yang mudah dibaca (KB, MB, GB)
+function con() {
+    local -i bytes=$1
+    if [[ $bytes -lt 1024 ]]; then
+        echo "${bytes}B"
+    elif [[ $bytes -lt 1048576 ]]; then
+        echo "$(( (bytes + 1023)/1024 ))KB"
+    elif [[ $bytes -lt 1073741824 ]]; then
+        echo "$(( (bytes + 1048575)/1048576 ))MB"
+    else
+        echo "$(( (bytes + 1073741823)/1073741824 ))GB"
     fi
-done
+}
 
-if [ $active_user_found -eq 0 ]; then
-    echo "Tidak ada pengguna VLESS yang aktif saat ini."
-fi
+# =============================================
+#         [ Fungsi Cek Vless Online ]
+# =============================================
+    clear
+    
+    # Header output
+    echo "==================================="
+    echo "      VLESS USER LOGIN"
+    echo "==================================="
 
-# Membersihkan file temporary
-rm -f "$TMP_FILE"
+    # Inisialisasi file sementara
+    echo -n > /tmp/other.txt
+    
+    # Ambil daftar semua pengguna VLESS dari konfigurasi Xray
+    # Mencari baris yang diawali dengan "#vl " atau "#vlg "
+    data=( $(grep -E "^#vl |^#vlg " /etc/xray/config.json | cut -d ' ' -f 2 | sort | uniq) )
+
+    # Loop untuk setiap akun pengguna
+    for akun in "${data[@]}"; do
+        # Lewati jika nama akun kosong
+        [[ -z "$akun" ]] && continue
+
+        # Bersihkan file IP untuk pengguna saat ini
+        echo -n > /tmp/ipvless.txt
+        
+        # Ambil 500 baris terakhir dari log akses untuk mendapatkan IP terbaru
+        data2=( $(tail -n 500 /var/log/xray/access.log | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq) )
+
+        # Loop untuk setiap IP yang ditemukan
+        for ip in "${data2[@]}"; do
+            # Cek apakah IP ini digunakan oleh 'akun' VLESS saat ini (via 'email')
+            jum=$(grep -w "email: $akun" /var/log/xray/access.log | tail -n 500 | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | grep -w "$ip" | sort | uniq)
+            if [[ "$jum" == "$ip" ]]; then
+                echo "$jum" >> /tmp/ipvless.txt
+            else
+                echo "$ip" >> /tmp/other.txt
+            fi
+            
+            jum2=$(cat /tmp/ipvless.txt)
+            sed -i "/$jum2/d" /tmp/other.txt > /dev/null 2>&1
+        done
+
+        # Cek apakah ada IP yang tercatat untuk akun ini (menandakan sedang online)
+        jum=$(cat /tmp/ipvless.txt)
+        if [[ -n "$jum" ]]; then
+            # Jika user online, kumpulkan informasi detailnya
+            
+            # Lokasi file konfigurasi VLESS
+            iplimit_file="/etc/julak/limit/vless/ip/${akun}"
+            limit_file="/etc/limit/vless/${akun}"
+            quota_file="/etc/vless/${akun}"
+
+            # Ambil data IP limit dari file <user>IP
+            if [[ -f "$iplimit_file" ]]; then
+                iplimit=$(cat "$iplimit_file")
+            else
+                iplimit="N/A"
+            fi
+
+            # Ambil data kuota yang terpakai
+            if [[ -f "$limit_file" ]]; then
+                wey=$(cat "$limit_file")
+                gb=$(con "$wey")
+            else
+                gb="0B"
+            fi
+
+            # Ambil data batas kuota
+            if [[ -f "$quota_file" ]]; then
+                byte=$(cat "$quota_file")
+                lim=$(con "$byte")
+            else
+                lim="0B"
+            fi
+
+            # Ambil waktu login terakhir dari log
+            lastlogin=$(grep -w "email: $akun" /var/log/xray/access.log | tail -n 500 | cut -d " " -f 1,2 | tail -1)
+            
+            # Hitung jumlah IP yang sedang login
+            jum2=$(wc -l < /tmp/ipvless.txt)
+
+            # Tampilkan info akun
+        echo "-----------------------------------"
+        echo "UserName :" "$akun"
+        echo "Login    :" "$lastlogin"
+        echo "Usage Quota :" "$gb"
+        echo "Limit Quota :" "$lim"
+        echo "Limit IP :" "$iplimit"
+        echo "Login IP :" "$jum2"
+        echo "-----------------------------------"
+        fi
+
+        # Hapus file IP sementara untuk iterasi berikutnya
+        rm -f /tmp/ipvless.txt
+    done
+
+    # Hapus file sisa
+    rm -f /tmp/other.txt
