@@ -39,8 +39,8 @@ systemctl enable --now atd > /dev/null 2>&1
 echo "sudo /bot/julak/bot-del-vmess '$user'" | at now + ${masaaktif_jam} hours 2>/dev/null
 
 # --- Buat Link Konfigurasi ---
-vmesslink_ws="vmess://$(echo -n "{\"v\": \"2\", \"ps\": \"${user}\", \"add\": \"${domain}\", \"port\": \"443\", \"id\": \"${uuid}\", \"aid\": 0, \"net\": \"ws\", \"path\": \"/vmess\", \"type\": \"none\", \"host\": \"\", \"tls\": \"tls\"}" | base64 -w 0)"
-vmesslink_grpc="vmess://$(echo -n "{\"v\": \"2\", \"ps\": \"${user}\", \"add\": \"${domain}\", \"port\": \"443\", \"id\": \"${uuid}\", \"aid\": 0, \"net\": \"grpc\", \"path\": \"vmess-grpc\", \"type\": \"none\", \"host\": \"${domain}\",\"tls\": \"tls\"}" | base64 -w 0)"
+vmesslink_ws="vmess://$(echo -n "{\"v\": \"2\", \"ps\": \"${user}\", \"add\": \"${domain}\", \"port\": \"443\", \"id\": \"${uuid}\", \"aid\": 0, \"net\": \"ws\", \"path\": \"/vmess\", \"type\": \"none\", \"host\": \"${domain}\", \"tls\": \"tls\", \"sni\": \"${domain}\"}" | base64 -w 0)"
+vmesslink_grpc="vmess://$(echo -n "{\"v\": \"2\", \"ps\": \"${user}\", \"add\": \"${domain}\", \"port\": \"443\", \"id\": \"${uuid}\", \"aid\": 0, \"net\": \"grpc\", \"path\": \"vmess-grpc\", \"type\": \"none\", \"host\": \"${domain}\",\"tls\": \"tls\", \"sni\": \"${domain}\"}" | base64 -w 0)"
 
 # --- Restart Layanan ---
 systemctl restart xray
@@ -49,14 +49,18 @@ systemctl restart xray
 echo "✅ Akun Trial VMess Berhasil Dibuat"
 echo "==================================="
 echo "Username   : ${user}"
+echo "Domain     : ${domain}"
+echo "Port TLS   : 443"
+echo "Port NTLS  : 80"
+echo "Path       : /vmess"
 echo "UUID       : ${uuid}"
-echo "Berlaku    : ${masaaktif_jam} jam"
-echo "Expired    : ${exp_at}"
 echo "-----------------------------------"
 echo "Link VMess WS:"
 echo "${vmesslink_ws}"
 echo "-----------------------------------"
 echo "Link VMess gRPC:"
 echo "${vmesslink_grpc}"
+echo "-----------------------------------"
+echo "Berlaku    : ${masaaktif_jam} jam"
+echo "Expired    : ${exp_at}"
 echo "==================================="
-
