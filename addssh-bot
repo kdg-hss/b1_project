@@ -13,7 +13,7 @@ Login="$1"
 Pass="$2"
 masaaktif="$3"
 Quota="1000"
-iplimit="3"
+iplimit="2"
 
 # --- Pengaturan Variabel Server ---
 IP=$(curl -sS ipv4.icanhazip.com)
@@ -64,7 +64,7 @@ fi
 touch /etc/ssh/.ssh.db
 # Hapus data lama jika ada, lalu tambahkan data baru
 sed -i "/\b${Login}\b/d" /etc/ssh/.ssh.db
-echo "#ssh# ${Login} ${Pass} ${Quota} ${iplimit} ${expe}" >>/etc/ssh/.ssh.db
+echo "### ${Login} ${Pass} ${Quota} ${iplimit} ${expe}" >>/etc/ssh/.ssh.db
 
 # --- Membuat File Detail Akun untuk Web Download ---
 cat > "/var/www/html/ssh-$Login.txt" <<-END
