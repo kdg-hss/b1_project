@@ -13,7 +13,7 @@ fi
 user=$1
 masaaktif=$2
 Quota=1000
-iplimit=3
+iplimit=2
 uuid=$(cat /proc/sys/kernel/random/uuid)
 tgl=$(date -d "$masaaktif days" +"%d")
 bln=$(date -d "$masaaktif days" +"%b")
