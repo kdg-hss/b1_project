@@ -23,7 +23,7 @@ echo "==================================="
 # PERUBAHAN 1: Cara menemukan pengguna Vmess disesuaikan
 # Mencari pengguna dengan penanda #vm atau #vmg
 # =================================================================
-data=( $(grep -E "^### |^#vmg " /etc/xray/config.json | cut -d ' ' -f 2 | sort | uniq) )
+data=( $(grep -E "^#vm |^#vmg " /etc/xray/config.json | cut -d ' ' -f 2 | sort | uniq) )
 
 for akun in "${data[@]}"; do
     [[ -z "$akun" ]] && continue
@@ -86,4 +86,3 @@ for akun in "${data[@]}"; do
 
     rm -f /tmp/ipvmess.txt
 done
-
