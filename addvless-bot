@@ -6,7 +6,7 @@ CITY=$(cat /root/.city)
 user=$1
 masaaktif=$2
 Quota=1000
-iplimit=3
+iplimit=2
 
 # Check if client already exists
 CLIENT_EXISTS=$(grep -w "$user" /etc/xray/config.json | wc -l)
