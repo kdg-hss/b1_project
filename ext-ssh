@@ -74,13 +74,13 @@ if [ -f "$DB" ]; then
   if ! cmp -s "$DB" "$TMPDB"; then
     mv "$TMPDB" "$DB"
     chmod 600 "$DB"
-    echo "✅ File $DB diperbarui untuk user $USER"
+    echo "✅ File Database diperbarui untuk user $USER"
   else
     rm -f "$TMPDB"
-    echo "ℹ️ Tidak ada entry di $DB untuk user $USER atau sudah up-to-date."
+    echo "ℹ️ Kadada entry di database untuk user $USER atau sudah up-to-date."
   fi
 else
-  echo "⚠️ $DB tidak ditemukan — lewati update DB."
+  echo "⚠️ lewati update DB."
 fi
 
 # output hasil ke stdout (untuk bot)
