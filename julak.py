@@ -18,7 +18,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # --- KONFIGURASI ---
-BOT_TOKEN = '8174163771:AAF7ah6F_3XIQ8U0S9yrhOlI_bHw8B51-lc'
+BOT_TOKEN = '8403356251:AAE7LwNIgFOVEAsl3GwZNdI7CT3Blk4v-z0'
 ADMIN_IDS = [2118266757]
 DB_FILE = '/usr/bin/jualan.db'
 SSH_HOST = "127.0.0.1"
