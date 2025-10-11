@@ -32,9 +32,9 @@ BOT_TOKEN = '8174163771:AAF7ah6F_3XIQ8U0S9yrhOlI_bHw8B51-lc'
 ADMIN_IDS = [2118266757]
 DB_FILE = '/usr/bin/jualan.db'
 SSH_HOST = "127.0.0.1"
-SSH_USERNAME = os.getenv("SSH_USERNAME", "root")
-SSH_PASSWORD = os.getenv("SSH_PASSWORD", "upsssss")
-SSH_PORT = 22
+SSH_USERNAME = os.getenv("SSH_USERNAME", "tobrut")
+SSH_PASSWORD = os.getenv("SSH_PASSWORD", "yesssbagus")
+SSH_PORT = 2028
 ACCOUNT_COST_IDR = 300
 QRIS_IMAGE_PATH = "/bot/julak/QRIS.png"
 QRIS_IMAGE_URL_FALLBACK = "http://sc1.bagusvpn.me/QRIS.png"
@@ -163,7 +163,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         conn.cursor().execute("INSERT INTO users (user_id, balance, registered_at, last_trial_at) VALUES (?, ?, ?, NULL)", (user_id, 0.0, ts))
         conn.commit()
         msg = f"🎉 Halo, <b>{user_name}</b>! Selamat datang dan terdaftar di bot julakVPN."
-    else: msg = f"👋 Selamat datang kembali, <b>{user_name}</b>!"
+    else: msg = f"👋 Selamat datang kembali, <b>{user_name}</b>!\n🔰Bot Order Otomatis Akun VPN🔰\n🌐Server Saat Ini = Singapura 🇸🇬\n♻️ISP = Digital Ocean♻️\n\n📞Contact Admin :\n🔎085166600428 🚀\n🔎@rajaganjil93 🚀"
     conn.close()
     keyboard = get_admin_main_menu_keyboard() if is_admin(user_id) else get_main_menu_keyboard()
     if is_admin(user_id): msg += "\n\n🛡️ <i>Anda masuk sebagai <b>Admin</b>.</i>"
@@ -187,11 +187,11 @@ async def handle_general_script_button(update: Update, context: ContextTypes.DEF
         await update.message.reply_text(f"❌ *{error}*\n{result}", parse_mode='HTML', reply_markup=keyboard)
     else: await update.message.reply_text(f"✅ *Hasil:*\n<pre>{result}</pre>", parse_mode='HTML', reply_markup=keyboard)
 
-async def menu_ssh_ovpn_main(u,c): await u.message.reply_text("🚀 *SSH & OVPN | 300P/DAYS *", reply_markup=get_ssh_ovpn_menu_keyboard(), parse_mode='HTML')
-async def menu_vmess_main(u,c): await u.message.reply_text("⚡ *VMess | 300P/DAYS *", reply_markup=get_vmess_creation_menu_keyboard(), parse_mode='HTML')
-async def menu_vless_main(u,c): await u.message.reply_text("🌀 *VLess | 300P/DAYS *", reply_markup=get_vless_menu_keyboard(), parse_mode='HTML')
-async def menu_trojan_main(u,c): await u.message.reply_text("🛡️ *Trojan | 300P/DAYS *", reply_markup=get_trojan_menu_keyboard(), parse_mode='HTML')
-async def menu_topup_main(u,c): await u.message.reply_text("💳 Top Up Saldo\n\nTopUp Manual Minimal (1000)\nTopUp Otomatis Minimal (5000)", reply_markup=get_topup_menu_keyboard(), parse_mode='HTML')
+async def menu_ssh_ovpn_main(u,c): await u.message.reply_text("🚀 *MENU SSH & OVPN* 🚀\n🔰Harga Rp.300 Perhari\n🔰Maximal Login 2 Device\n🚫 Melanggar = Akun Terkunci 15 menit", reply_markup=get_ssh_ovpn_menu_keyboard(), parse_mode='HTML')
+async def menu_vmess_main(u,c): await u.message.reply_text("⚡ *MENU VMESS* ⚡\n🔰Harga Rp.300 Perhari\n🔰Maximal Login 2 Device\n🚫 Melanggar = Akun Terkunci 15 menit", reply_markup=get_vmess_creation_menu_keyboard(), parse_mode='HTML')
+async def menu_vless_main(u,c): await u.message.reply_text("🌀 *MENU VLESS* 🌀\n🔰Harga Rp.300 Perhari\n🔰Maximal Login 2 Device\n🚫 Melanggar = Akun Terkunci 15 menit", reply_markup=get_vless_menu_keyboard(), parse_mode='HTML')
+async def menu_trojan_main(u,c): await u.message.reply_text("✴️ *MENU TROJAN* ✴️\n🔰Harga Rp.300 Perhari\n🔰Maximal Login 2 Device\n🚫 Melanggar = Akun Terkunci 15 menit", reply_markup=get_trojan_menu_keyboard(), parse_mode='HTML')
+async def menu_topup_main(u,c): await u.message.reply_text("💳 *MENU TOP UP SALDO* 💳\n🔰TopUp Manual Minimal (1000)\n🔰TopUp Otomatis Minimal (5000)\n⌛Jika Ada Kendala Silahkan Hubungi Admin\n🛡️085166600428🛡️", reply_markup=get_topup_menu_keyboard(), parse_mode='HTML')
 async def back_to_main_menu(u,c): await show_menu(u, c)
 
 async def create_trial_ssh_handler(u,c): await check_and_handle_trial(u,c,'/bot/julak/bot-trial','Membuat trial SSH...','Gagal membuat trial SSH.',get_ssh_ovpn_menu_keyboard())
@@ -436,7 +436,7 @@ async def start_topup_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def process_nominal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     if not text.isdigit() or int(text) < 5000:
-        await update.message.reply_text("❌ Nominal tidak valid. Minimal Rp5.000.\nMasukkan lagi nominal:")
+        await update.message.reply_text("❌ Nominal tidak valid. Minimal Rp5000.\nMasukkan lagi nominal:")
         return NOMINAL
 
     nominal = int(text)
@@ -628,7 +628,7 @@ async def cancel_topup_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("kode_deposit", None)
     context.user_data.pop("nominal", None)
 
-    keyboard = [[KeyboardButton(" Kembali ke Menu Utama")]]
+    keyboard = [[KeyboardButton("⬅️ Kembali ke Menu Utama")]]
     # support baik message maupun callback_query
     if getattr(update, "callback_query", None):
         try:
@@ -1062,7 +1062,8 @@ def main() -> None:
     # if job_queue:
     #     job_queue.run_repeating(periodic_license_check, interval=DT.timedelta(hours=LICENSE_CHECK_INTERVAL_HOURS))
 
-    cancel_handler = CommandHandler("cancel", cancel_topup_auto)
+    cancel_handler = CommandHandler("cancel", cancel_conversation)
+    batal_handler = CommandHandler("batal", cancel_topup_auto)
 
     conv_handlers = [
 
@@ -1157,7 +1158,7 @@ def main() -> None:
         NOMINAL: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_nominal)],
         KONFIRMASI: [MessageHandler(filters.Regex(r'^(✅ Konfirmasi Pembayaran|❌ Batalkan)$'), process_payment_auto)],
     },
-    fallbacks=[cancel_handler],
+    fallbacks=[batal_handler],
 ),
 
         # ========== handlers conv tambahan ==========
@@ -1199,7 +1200,9 @@ def main() -> None:
         r'^📊 Cek Layanan VMess$': check_vmess_service_handler,
         r'^📊 Cek Layanan VLess$': check_vless_service_handler,
         r'^📊 Cek Layanan Trojan$': check_trojan_service_handler,
-        r'^📊 Cek Layanan SSH$': check_ssh_service_handler
+        r'^📊 Cek Layanan SSH$': check_ssh_service_handler,
+        r'^⬅️ Kembali$': back_to_main_menu,
+        r'^⬅️ Kembali ke Menu Admin$': back_to_main_menu
     }
     for regex, func in message_handlers.items(): application.add_handler(MessageHandler(filters.Regex(regex), func))
 
