@@ -427,7 +427,7 @@ async def process_extend_account(u, c, srv, scr, params, kbd):
 # --- START TOP UP ---
 async def start_topup_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "💰 Masukkan jumlah saldo yang ingin kamu top-up (contoh: 10000)"
+        "💰 Masukkan jumlah saldo yang ingin kamu top-up (contoh: 5000)"
     )
     return NOMINAL
 
@@ -435,8 +435,8 @@ async def start_topup_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- PROCESS NOMINAL ---
 async def process_nominal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    if not text.isdigit() or int(text) < 1000:
-        await update.message.reply_text("❌ Nominal tidak valid. Minimal Rp1.000.\nMasukkan lagi nominal:")
+    if not text.isdigit() or int(text) < 5000:
+        await update.message.reply_text("❌ Nominal tidak valid. Minimal Rp5.000.\nMasukkan lagi nominal:")
         return NOMINAL
 
     nominal = int(text)
